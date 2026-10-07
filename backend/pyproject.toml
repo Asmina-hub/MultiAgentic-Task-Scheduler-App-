@@ -8,7 +8,12 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
+    "langchain>=1.4.3",
+    "langchain-anthropic>=1.7.5",
+    "langchain-openai>=1.6.7",
+    "langgraph>=1.2.13",
     "pydantic>=2.13.5",
+    "pydantic-settings>=2.15.0",
 ]
 
 [project.scripts]
@@ -22,4 +27,9 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.1.1",
     "ruff>=0.16.10",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that call real LLM providers (deselect with '-m \"not integration\"')",
 ]

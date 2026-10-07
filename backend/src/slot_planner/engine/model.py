@@ -27,21 +27,6 @@ ALL_DAYS: list[Weekday] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 class EngineModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-class Messages(BaseModel):
-    id : int = Field(gt=0)
-    user_id : int = Field(gt=0)
-    text : str = Field(min_length =1)
-    intent : SlotSource
-    created_at : date
-    
-class PlanExtract(BaseModel):
-    
-    id : int = Field(gt=0)
-    user_id : int = Field(gt=0)
-    message_id : int = Field(gt=0)
-    month : str
-    llm_output : str
-    status : str
 
 
 class Activity(EngineModel):
