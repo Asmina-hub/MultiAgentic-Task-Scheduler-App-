@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from slot_planner.agents.llm import llm_init
 from slot_planner.agents.prompt import PLAN_BUILDER_SYSTEM
 from slot_planner.agents.schema import PlanExtraction
+from langchain_core.globals import set_debug
 
 MAX_RETRIES = 2
 
@@ -53,6 +54,7 @@ if __name__ == "__main__":
     keep saturday free monday to friday and sunday
     night 1hr german A1
     """
+    set_debug(True)
     plan = build_plan(october)
     print(plan.model_dump_json(indent=2))
     print("missing:", plan.missing_fields())

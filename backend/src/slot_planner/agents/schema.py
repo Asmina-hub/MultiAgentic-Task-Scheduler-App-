@@ -60,3 +60,14 @@ class PlanExtraction(BaseModel):
             for field in REQUIRED_FIELDS
             if getattr(activity, field) is None
         ]
+class Option(BaseModel):
+    label: str = Field(min_length=1)
+    value: int | str
+
+
+class Question(BaseModel):
+    activity: str | None = None
+    field: Literal["target_type", "target_min", "priority"]
+    text: str = Field(min_length=1)
+    options: list[Option]
+    multi_select: bool = False
