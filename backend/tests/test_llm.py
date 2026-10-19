@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel
-from slot_planner.agents.llm import llm_init
 
+from slot_planner.agents.llm import llm_init
 
 pytestmark = pytest.mark.integration
 

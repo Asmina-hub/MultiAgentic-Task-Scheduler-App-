@@ -4,17 +4,22 @@ Agents may import from the engine (allowed direction). The engine never
 imports from here.
 """
 
-from datetime import datetime, time
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from slot_planner.engine.model import ALL_DAYS, TargetType, TimeWindow, Weekday
+from slot_planner.engine.model import (
+    ALL_DAYS,
+    NaiveTime,
+    TargetType,
+    TimeWindow,
+    Weekday,
+    WeekSlot,
+)
 
 Intent = Literal["plan", "log", "replan", "question"]
 
-# Fields with no safe default. If the LLM leaves one empty, we ask the user.
-REQUIRED_FIELDS = ["target_type", "target_min", "priority"]
 
 
 class Message(BaseModel):
@@ -26,13 +31,13 @@ class Message(BaseModel):
 
 
 class ExtractedActivity(BaseModel):
-    """One activity as the LLM understood it. None means 'user didn't say'."""
+    """One activity as the LLM understood it. The LLM fills in anything the user didn't say."""
 
     name: str = Field(min_length=1)
-    target_type: TargetType | None = None
-    target_min: int | None = Field(default=None, gt=0)
-    priority: int | None = Field(default=None, ge=1)
-    fixed_time: time | None = None
+    target_type: TargetType 
+    target_min: int  = Field( gt=0)
+    priority: int = Field( ge=1)
+    fixed_time: NaiveTime | None = None
     preferred_window: TimeWindow = "any"
     allowed_days: list[Weekday] = Field(default_factory=lambda: list(ALL_DAYS))
     notes: str | None = None
@@ -52,22 +57,8 @@ class PlanExtraction(BaseModel):
     activities: list[ExtractedActivity]
     free_days: list[Weekday] = Field(default_factory=list)
 
-    def missing_fields(self) -> list[tuple[str, str]]:
-        """(activity_name, field_name) for every required field the user didn't give."""
-        return [
-            (activity.name, field)
-            for activity in self.activities
-            for field in REQUIRED_FIELDS
-            if getattr(activity, field) is None
-        ]
-class Option(BaseModel):
-    label: str = Field(min_length=1)
-    value: int | str
 
+class WeekTimetable(BaseModel):
+    """What the timetable LLM returns: one template week."""
 
-class Question(BaseModel):
-    activity: str | None = None
-    field: Literal["target_type", "target_min", "priority"]
-    text: str = Field(min_length=1)
-    options: list[Option]
-    multi_select: bool = False
+    slots: list[WeekSlot]

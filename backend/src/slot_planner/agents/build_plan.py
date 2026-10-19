@@ -4,7 +4,6 @@ from pydantic import ValidationError
 from slot_planner.agents.llm import llm_init
 from slot_planner.agents.prompt import PLAN_BUILDER_SYSTEM
 from slot_planner.agents.schema import PlanExtraction
-from langchain_core.globals import set_debug
 
 MAX_RETRIES = 2
 
@@ -35,8 +34,10 @@ def build_plan(text: str, structured_llm=None) -> PlanExtraction:
             last_error = e
             messages.append((
                 "user",
-                f"Your last answer was invalid:\n{e}\n"
-                "Return the full corrected output. Follow the rules and the schema exactly.",
+                (
+                    f"Your last answer was invalid:\n{e}\n"
+                    "Return the full corrected output. Follow the rules and the schema exactly."
+                ),
             ))
 
     raise PlanExtractionError(
@@ -50,11 +51,9 @@ if __name__ == "__main__":
     thesis main focus need to work a fixed time every day
     job applying either morning or evening like night every day 1hr
     upskill theory
-    upskilling project coding daily some
+    upskilling project coding daily some altenate with upskilling theory
     keep saturday free monday to friday and sunday
     night 1hr german A1
     """
-    set_debug(True)
     plan = build_plan(october)
     print(plan.model_dump_json(indent=2))
-    print("missing:", plan.missing_fields())

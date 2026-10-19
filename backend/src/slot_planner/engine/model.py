@@ -1,7 +1,8 @@
 from datetime import date, time
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -11,6 +12,11 @@ from pydantic import (
 )
 
 MINUTES_PER_DAY = 24 * 60
+
+# A plain clock time like 09:30. LLMs sometimes send "09:30Z" or "09:30+00:00",
+# which gives a timezone-aware time that can't be compared with plain ones.
+# This strips the timezone, so every time in the app is the same kind.
+NaiveTime = Annotated[time, AfterValidator(lambda t: t.replace(tzinfo=None))]
  
 def to_minutes(t: time) -> int:
     """Minutes since midnight, e.g. 14:30 -> 870."""
@@ -20,7 +26,7 @@ def to_minutes(t: time) -> int:
 Weekday = Literal["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 TargetType = Literal["daily", "weekly"]
 TimeWindow = Literal["morning", "afternoon", "night", "any"]
-SlotStatus = Literal["planned", "done", "skipped", "replaced"]
+SlotStatus = Literal["planned", "done", "skipped"]
 SlotSource = Literal["plan", "replan"]
 ALL_DAYS: list[Weekday] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
@@ -36,7 +42,7 @@ class Activity(EngineModel):
     target_type  : TargetType
     target_min   : int = Field(gt=0)     
     priority      : int = Field(ge=1)   
-    fixed_time   : time | None = None     
+    fixed_time   : NaiveTime | None = None     
     preferred_window  : TimeWindow = "any"
     allowed_days: list[Weekday] = Field(default_factory=lambda: list(ALL_DAYS))
     max_min_per_day: int | None = Field(default=None, gt=0, le=MINUTES_PER_DAY)
@@ -66,12 +72,12 @@ class Activity(EngineModel):
     
 
 class Slot(EngineModel):
-    id: int
+    id: int | None = None
     user_id: int
     activity_id: int
     date: date
-    start: time
-    end: time
+    start: NaiveTime
+    end: NaiveTime
     status: SlotStatus = "planned"
     source: SlotSource = "plan"   
 
@@ -101,10 +107,10 @@ class Rules(EngineModel):
     user_id: int
     free_days: list[Weekday] = Field(default_factory=lambda: ["Sat"])
     week_starts_on: Weekday = "Mon"
-    day_start: time = time(8, 0)
-    day_end: time = time(22, 0)
+    day_start: NaiveTime = time(8, 0)
+    day_end: NaiveTime = time(22, 0)
     slot_step_min: int = Field(default=15, gt=0, le=60)
-    min_chunk_min: int = Field(default=30, gt=0)
+    min_chunk_min: int = Field(default=60, gt=0)
  
     @model_validator(mode="after")
     def check_rules(self) -> Rules:
@@ -115,3 +121,15 @@ class Rules(EngineModel):
         if len(set(self.free_days)) == len(ALL_DAYS):
             raise ValueError("at least one day must not be free")
         return self
+    
+class WeekSlot(EngineModel):
+    """One block in the template week. No date yet, just a weekday."""
+
+    activity: str = Field(min_length=1)
+    day: Weekday
+    start: NaiveTime
+    end: NaiveTime
+
+    @property
+    def duration_min(self) -> int:
+        return to_minutes(self.end) - to_minutes(self.start)

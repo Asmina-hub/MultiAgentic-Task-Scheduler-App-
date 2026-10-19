@@ -1,5 +1,7 @@
 from langchain.chat_models import init_chat_model
+
 from slot_planner.config import settings
+
 
 def llm_init(provider :str|None= None, temperature:float=0, fallback: bool =True):
     provider = provider or settings.default_provider

@@ -1,7 +1,25 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
-from slot_planner.agents.schema import Option, Question, PlanExtraction
-from slot_planner.engine.model import TargetType 
+from slot_planner.agents.schema import PlanExtraction
+
+# Parked for v2 (human-in-the-loop). Not used in v1.
+
+
+class Option(BaseModel):
+    label: str = Field(min_length=1)
+    value: int | str
+
+
+class Question(BaseModel):
+    activity: str | None = None
+    field: Literal["target_type", "target_min", "priority"]
+    text: str = Field(min_length=1)
+    options: list[Option]
+    multi_select: bool = False
+
+from slot_planner.engine.model import TargetType
 
 AUTO ='auto'
 OTHER ='other'
