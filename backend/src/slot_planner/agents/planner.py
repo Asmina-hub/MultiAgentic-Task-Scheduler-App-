@@ -34,7 +34,7 @@ def create_plan(text: str, start: date | None = None, end: date | None = None, u
     activities, rules = to_engine(plan, user_id)              # trust boundary
     week = make_timetable(activities, rules)                  # LLM call 2 + guardrails
     slots = expand_to_dates(activities, week, start, end, user_id)
-    print_week(week)
+   
     return save_plan(text, activities, rules, slots, start, end)
 
 

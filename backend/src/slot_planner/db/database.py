@@ -10,8 +10,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import date, datetime, time
 from pathlib import Path
+from typing import Annotated
 
-from pydantic import BaseModel
+from pydantic import BaseModel, PlainSerializer, WithJsonSchema
 
 from slot_planner.config import BACKEND_DIR
 from slot_planner.engine.model import Activity, Rules, Slot, SlotStatus
@@ -59,13 +60,23 @@ CREATE INDEX IF NOT EXISTS idx_slots_user_date ON slots(user_id, date);
 """
 
 
+# A clock time sent to clients as "HH:MM" (e.g. "08:00").
+# Plain `time` would be described as JSON Schema format "time", which by the standard
+# requires a timezone ("08:00:00Z"). Strict MCP clients then reject "08:00:00".
+ClockTime = Annotated[
+    time,
+    PlainSerializer(lambda t: t.strftime("%H:%M"), return_type=str),
+    WithJsonSchema({"type": "string", "pattern": "^[0-2][0-9]:[0-5][0-9]$", "examples": ["08:00"]}),
+]
+
+
 class SlotView(BaseModel):
     """A slot as the outside world sees it: with the activity name, ready to show."""
 
     id: int
     date: date
-    start: time
-    end: time
+    start: ClockTime
+    end: ClockTime
     activity: str
     status: SlotStatus
 

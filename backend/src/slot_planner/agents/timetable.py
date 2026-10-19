@@ -15,8 +15,12 @@ from slot_planner.agents.prompt import TIMETABLE_SYSTEM
 from slot_planner.agents.schema import PlanExtraction, WeekTimetable
 from slot_planner.engine.model import Activity, Rules, WeekSlot
 from slot_planner.engine.timetable_guards import check_timetable
+import json
+import logging
 
 MAX_RETRIES = 3
+
+log = logging.getLogger(__name__)
 
 class TimetableError(Exception):
     """Raised when the LLM can't produce a week that passes the checks."""
@@ -76,7 +80,7 @@ def make_timetable(activities: list[Activity], rules: Rules, structured_llm=None
             if not errors:
                 return result.slots
             last_problem = "\n".join(errors)
-            print(f"attempt {attempt}: {len(errors)} rule problems, asking the model to fix them")
+            log.info("attempt %d: %d rule problems, asking the model to fix them", attempt, len(errors))
             # Show the model its own answer plus the problems, so it can fix just those
             messages.append(("assistant", result.model_dump_json()))
             feedback = (
