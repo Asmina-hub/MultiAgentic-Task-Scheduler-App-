@@ -67,7 +67,7 @@ def test_fixed_time():
 def test_preferred_window():
     week = valid_week()
     week[0] = slot("German", "Mon", (9, 0), (10, 0))
-    assert any("should be in the night" in e for e in check(week))
+    assert any("should start in the night" in e for e in check(week))
 
 
 def test_daily_total_missing_on_one_day():
@@ -98,3 +98,55 @@ def test_timezone_is_stripped():
     s = WeekSlot.model_validate({"activity": "German", "day": "Mon", "start": "20:00Z", "end": "21:00+00:00"})
     assert s.start.tzinfo is None and s.end.tzinfo is None
     assert check([*valid_week()[1:], s]) == []
+
+
+# ---------- blocked times, max days, multiple windows ----------
+
+def test_blocked_time_every_day():
+    rules = Rules(user_id=1, free_days=["Sat"], blocked_times=[{"start": "17:00", "end": "20:00"}])
+    week = valid_week() + [slot("HiWi", "Tue", (18, 0), (19, 0))]
+    errors = check_timetable([GERMAN, HIWI], week, rules)
+    assert any("overlaps blocked time 17:00-20:00" in e for e in errors)
+
+
+def test_blocked_time_only_on_some_days():
+    rules = Rules(user_id=1, free_days=["Sat"],
+                  blocked_times=[{"start": "14:00", "end": "16:00", "days": ["Tue"]}])
+    # HiWi is on Mon and Wed 14:00-15:00, so a Tuesday-only block doesn't affect it
+    assert check_timetable([GERMAN, HIWI], valid_week(), rules) == []
+
+
+def test_max_days_per_week():
+    hiwi = act(2, "HiWi", "weekly", 120, max_days_per_week=1)
+    errors = check(valid_week(), (GERMAN, hiwi))
+    assert "HiWi is on 2 days, max is 1" in errors
+
+
+def test_two_preferred_windows():
+    german = act(1, "German", "daily", 60, preferred_window=["morning", "night"])
+    week = valid_week()
+    week[0] = slot("German", "Mon", (8, 0), (9, 0))      # morning: fine
+    week[1] = slot("German", "Tue", (14, 0), (15, 0))    # afternoon: not allowed
+    errors = check(week, (german, HIWI))
+    assert not any("on Mon" in e and "should start" in e for e in errors)
+    assert any("on Tue" in e and "should start in the morning or night" in e for e in errors)
+
+
+def test_single_window_string_still_works():
+    assert act(1, "X", "daily", 60, preferred_window="night").preferred_window == ["night"]
+
+
+def test_daily_with_max_days_becomes_weekly():
+    from slot_planner.agents.schema import PlanExtraction
+    from slot_planner.agents.timetable import to_engine
+
+    plan = PlanExtraction.model_validate({
+        "activities": [{"name": "Theory", "target_type": "daily", "target_min": 120,
+                        "priority": 3, "max_days_per_week": 3}],
+        "free_days": ["Sat"],
+        "blocked_times": [{"start": "17:00", "end": "20:00", "days": []}],
+    })
+    activities, rules = to_engine(plan)
+    assert activities[0].target_type == "weekly"
+    assert activities[0].target_min == 360
+    assert len(rules.blocked_times) == 1

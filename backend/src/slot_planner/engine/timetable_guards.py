@@ -61,11 +61,17 @@ def check_timetable(activities: list[Activity], week: list[WeekSlot], rules: Rul
         if activity.fixed_time and s.start != activity.fixed_time:
             errors.append(f"{label}: must start at {fmt(activity.fixed_time)}")
 
-        # Preferred window
-        if activity.preferred_window != "any":
-            lo, hi = WINDOWS[activity.preferred_window]
-            if not (lo <= s.start < hi):
-                errors.append(f"{label}: should be in the {activity.preferred_window}")
+        # Preferred windows: must start inside at least one of them
+        windows = activity.preferred_window
+        if "any" not in windows and not any(
+            WINDOWS[w][0] <= s.start < WINDOWS[w][1] for w in windows
+        ):
+            errors.append(f"{label}: should start in the {' or '.join(windows)}")
+
+        # Blocked times: no slot may overlap a time the user keeps free
+        for b in rules.blocked_times:
+            if b.applies_to(s.day) and s.start < b.end and b.start < s.end:
+                errors.append(f"{label}: overlaps blocked time {fmt(b.start)}-{fmt(b.end)}")
 
     # 4. Overlaps: sort each day by start, compare neighbours only
     per_day: dict[str, list[WeekSlot]] = defaultdict(list)
@@ -83,6 +89,15 @@ def check_timetable(activities: list[Activity], week: list[WeekSlot], rules: Rul
     # 6. Totals
     for a in activities:
         mine = [s for s in week if s.activity == a.name]
+
+        # Max days per week
+        if a.max_days_per_week:
+            days_used = {s.day for s in mine}
+            if len(days_used) > a.max_days_per_week:
+                errors.append(
+                    f"{a.name} is on {len(days_used)} days, max is {a.max_days_per_week}"
+                )
+
         if a.target_type == "weekly":
             total = sum(s.duration_min for s in mine)
             if abs(total - a.target_min) > TOLERANCE_MIN:

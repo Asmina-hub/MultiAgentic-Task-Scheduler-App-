@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 from pydantic import (
     AfterValidator,
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
     computed_field,
@@ -30,6 +31,15 @@ SlotStatus = Literal["planned", "done", "skipped"]
 SlotSource = Literal["plan", "replan"]
 ALL_DAYS: list[Weekday] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
+
+def _as_list(value):
+    """Accept a single window ("night") as well as a list (["morning", "night"])."""
+    return [value] if isinstance(value, str) else value
+
+
+# One or more time windows an activity may start in. ["any"] means no preference.
+Windows = Annotated[list[TimeWindow], BeforeValidator(_as_list)]
+
 class EngineModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -43,8 +53,9 @@ class Activity(EngineModel):
     target_min   : int = Field(gt=0)     
     priority      : int = Field(ge=1)   
     fixed_time   : NaiveTime | None = None     
-    preferred_window  : TimeWindow = "any"
+    preferred_window  : Windows = Field(default_factory=lambda: ["any"])
     allowed_days: list[Weekday] = Field(default_factory=lambda: list(ALL_DAYS))
+    max_days_per_week: int | None = Field(default=None, ge=1, le=7)
     max_min_per_day: int | None = Field(default=None, gt=0, le=MINUTES_PER_DAY)
 
     @computed_field
@@ -103,6 +114,23 @@ class ActivityLog(EngineModel):
     slot_id: int | None = None
  
  
+class BlockedTime(EngineModel):
+    """A time range that must stay free, e.g. gym 17:00-20:00. No days means every day."""
+
+    start: NaiveTime
+    end: NaiveTime
+    days: list[Weekday] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def check_order(self) -> BlockedTime:
+        if self.end <= self.start:
+            raise ValueError("blocked time must end after it starts")
+        return self
+
+    def applies_to(self, day: Weekday) -> bool:
+        return not self.days or day in self.days
+
+
 class Rules(EngineModel):
     user_id: int
     free_days: list[Weekday] = Field(default_factory=lambda: ["Sat"])
@@ -111,6 +139,7 @@ class Rules(EngineModel):
     day_end: NaiveTime = time(22, 0)
     slot_step_min: int = Field(default=15, gt=0, le=60)
     min_chunk_min: int = Field(default=60, gt=0)
+    blocked_times: list[BlockedTime] = Field(default_factory=list)
  
     @model_validator(mode="after")
     def check_rules(self) -> Rules:

@@ -11,11 +11,12 @@ from pydantic import BaseModel, Field, field_validator
 
 from slot_planner.engine.model import (
     ALL_DAYS,
+    BlockedTime,
     NaiveTime,
     TargetType,
-    TimeWindow,
     Weekday,
     WeekSlot,
+    Windows,
 )
 
 Intent = Literal["plan", "log", "replan", "question"]
@@ -38,8 +39,9 @@ class ExtractedActivity(BaseModel):
     target_min: int  = Field( gt=0)
     priority: int = Field( ge=1)
     fixed_time: NaiveTime | None = None
-    preferred_window: TimeWindow = "any"
+    preferred_window: Windows = Field(default_factory=lambda: ["any"])
     allowed_days: list[Weekday] = Field(default_factory=lambda: list(ALL_DAYS))
+    max_days_per_week: int | None = Field(default=None, ge=1, le=7)
     notes: str | None = None
 
     @field_validator("allowed_days")
@@ -56,6 +58,7 @@ class PlanExtraction(BaseModel):
 
     activities: list[ExtractedActivity]
     free_days: list[Weekday] = Field(default_factory=list)
+    blocked_times: list[BlockedTime] = Field(default_factory=list)
 
 
 class WeekTimetable(BaseModel):

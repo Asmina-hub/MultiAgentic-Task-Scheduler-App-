@@ -22,14 +22,26 @@ class TimetableError(Exception):
     """Raised when the LLM can't produce a week that passes the checks."""
 
 def to_engine(plan: PlanExtraction, user_id: int = 1) -> tuple[list[Activity], Rules]:
-    """LLM output becomes trusted engine data here. Free days always win."""
-    rules = Rules(user_id=user_id, free_days=plan.free_days)
+    """LLM output becomes trusted engine data here.
+
+    Code rules applied whatever the LLM said:
+      - free days always win
+      - a daily activity gets at least min_chunk_min (60) minutes
+      - "1 hr daily, but only on 3 days" is really weekly: 3 x 60 = 180 min a week
+    """
+    rules = Rules(user_id=user_id, free_days=plan.free_days, blocked_times=plan.blocked_times)
     activities = []
     for i, a in enumerate(plan.activities, start=1):
         data = a.model_dump(exclude={"notes"})
-        data["allowed_days"] = [d for d in a.allowed_days if d not in rules.free_days]
+        days = [d for d in a.allowed_days if d not in rules.free_days]
+        data["allowed_days"] = days
         if a.target_type == "daily":
-            data["target_min"] = max(a.target_min, rules.min_chunk_min)
+            per_day = max(a.target_min, rules.min_chunk_min)
+            if a.max_days_per_week and a.max_days_per_week < len(days):
+                data["target_type"] = "weekly"
+                data["target_min"] = per_day * a.max_days_per_week
+            else:
+                data["target_min"] = per_day
         activities.append(Activity(id=i, user_id=user_id, **data))
     return activities, rules
 
@@ -42,6 +54,7 @@ def make_timetable(activities: list[Activity], rules: Rules, structured_llm=None
             "day_window": f"{rules.day_start:%H:%M}-{rules.day_end:%H:%M}",
             "free_days": rules.free_days,
             "min_slot_minutes": rules.min_chunk_min,
+            "blocked_times": [b.model_dump(mode="json") for b in rules.blocked_times],
         },
         "activities": [a.model_dump(mode="json", exclude={"id", "user_id", "locked"}) for a in activities],
     }
