@@ -53,3 +53,4 @@ if __name__ == "__main__":
     print(f"\nSaved plan {plan_id}. Today ({day:%a %d %b}):")
     for s in get_slots(day, day):
         print(f"  [{s.id}] {s.start:%H:%M}-{s.end:%H:%M}  {s.activity}  ({s.status})")
+        
